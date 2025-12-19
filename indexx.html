@@ -161,7 +161,8 @@
         <!--  -->
         <div id="status" class="badge">🎄 Giang Sinh An Lanh 🎄</div>
         <div class="guide">
-            🖐 <b>Open:</b> Explode &nbsp;|&nbsp; 🫶 <b>Heart:</b> Love &nbsp;|&nbsp; ✊ <b>Fist:</b> Tree |&nbsp; 👌 <b>Choose:</b> Pick
+            🖐 <b>Open:</b> Explode &nbsp;|&nbsp; 🫶 <b>Heart:</b> Love &nbsp;|&nbsp; ✊ <b>Fist:</b> Tree |&nbsp; 👌
+            <b>Choose:</b> Pick
         </div>
         <button id="btnStart" onclick="startSystem()">START MAGIC</button>
     </div>
@@ -174,6 +175,10 @@
     <canvas id="camera-preview"></canvas>
 
     <script>
+        // tuyet 
+
+        let snowPoints, snowGeo, snowPositions;
+        const SNOW_COUNT = 500;
         // ==========================================
         // 1. RESOURCES CONFIG 
         // ==========================================
@@ -222,6 +227,13 @@
                 // --------------------------
 
             }
+            else if (type === 'snow_flake') {
+                const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, 60);
+                grd.addColorStop(0, 'rgba(255, 255, 255, 1)');
+                grd.addColorStop(0.5, 'rgba(255, 255, 255, 0.5)');
+                grd.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = grd; ctx.fillRect(0, 0, 128, 128);
+            }
             return new THREE.CanvasTexture(canvas);
         }
 
@@ -243,7 +255,9 @@
             explodeRadius: 65,
             photoOrbitRadius: 25,
             treeHeight: 70,
-            treeBaseRadius: 35
+            treeBaseRadius: 35,
+            snowCount: 1500, // Số lượng hạt tuyết
+            snowRange: 150
         };
 
         let scene, camera, renderer;
@@ -258,7 +272,54 @@
         // ==========================================
         // 3. THREE.JS SYSTEM 
         // ==========================================
+        function initSnow() {
+            snowGeo = new THREE.BufferGeometry();
+            snowPositions = new Float32Array(SNOW_COUNT * 3);
+
+            for (let i = 0; i < SNOW_COUNT; i++) {
+                snowPositions[i * 3] = (Math.random() - 0.5) * 140; // X
+                snowPositions[i * 3 + 1] = Math.random() * 80;          // Y
+                snowPositions[i * 3 + 2] = (Math.random() - 0.5) * 140; // Z
+            }
+
+            snowGeo.setAttribute(
+                'position',
+                new THREE.BufferAttribute(snowPositions, 3)
+            );
+
+            const snowMat = new THREE.PointsMaterial({
+                color: 0xFFFFFF,
+                size: 0.8,
+                transparent: true,
+                opacity: 0.9,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+
+            snowPoints = new THREE.Points(snowGeo, snowMat);
+            scene.add(snowPoints);
+        }
+
+        function updateSnow() {
+            const pos = snowGeo.attributes.position.array;
+
+            for (let i = 0; i < SNOW_COUNT; i++) {
+                pos[i * 3 + 1] -= 0.15 + Math.random() * 0.05; // rơi xuống
+
+                // Nếu rơi quá thấp → cho rơi lại từ trên
+                if (pos[i * 3 + 1] < -40) {
+                    pos[i * 3 + 1] = 40;
+                    pos[i * 3] = (Math.random() - 0.5) * 140;
+                    pos[i * 3 + 2] = (Math.random() - 0.5) * 140;
+                }
+            }
+
+            snowGeo.attributes.position.needsUpdate = true;
+        }
+
+
         function init3D() {
+            createSnowSystem
             const container = document.getElementById('canvas-container');
             scene = new THREE.Scene();
             scene.fog = new THREE.FogExp2(0x000000, 0.002);
@@ -390,59 +451,59 @@
         // }
 
         function createPhotos() {
-    const BASE_SIZE = 8; // Kích thước chuẩn cho chiều dài nhất của ảnh
-    const loader = new THREE.TextureLoader();
-    
-    // Viền vàng với độ sáng nhẹ để trông giống Neon hơn
-    const borderMat = new THREE.MeshBasicMaterial({ 
-        color: 0xFFD700, 
-        side: THREE.DoubleSide,
-        transparent: true,
-        opacity: 0.9
-    });
+            const BASE_SIZE = 8; // Kích thước chuẩn cho chiều dài nhất của ảnh
+            const loader = new THREE.TextureLoader();
 
-    for (let i = 0; i < 5; i++) {
-        // Tạo một mesh tạm thời
-        const tempGeo = new THREE.PlaneGeometry(1, 1);
-        const mat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 });
-        const mesh = new THREE.Mesh(tempGeo, mat);
-        
-        mesh.visible = false;
-        mesh.scale.set(0, 0, 0);
-        scene.add(mesh);
-        photoMeshes.push(mesh);
+            // Viền vàng với độ sáng nhẹ để trông giống Neon hơn
+            const borderMat = new THREE.MeshBasicMaterial({
+                color: 0xFFD700,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.9
+            });
 
-        // Tải ảnh và xử lý tỷ lệ
-        loader.load(photoFiles[i], (texture) => {
-            const img = texture.image;
-            const ratio = img.width / img.height;
+            for (let i = 0; i < 5; i++) {
+                // Tạo một mesh tạm thời
+                const tempGeo = new THREE.PlaneGeometry(1, 1);
+                const mat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 });
+                const mesh = new THREE.Mesh(tempGeo, mat);
 
-            let finalW, finalH;
-            if (ratio > 1) { // Ảnh ngang
-                finalW = BASE_SIZE;
-                finalH = BASE_SIZE / ratio;
-            } else { // Ảnh đứng
-                finalH = BASE_SIZE;
-                finalW = BASE_SIZE * ratio;
+                mesh.visible = false;
+                mesh.scale.set(0, 0, 0);
+                scene.add(mesh);
+                photoMeshes.push(mesh);
+
+                // Tải ảnh và xử lý tỷ lệ
+                loader.load(photoFiles[i], (texture) => {
+                    const img = texture.image;
+                    const ratio = img.width / img.height;
+
+                    let finalW, finalH;
+                    if (ratio > 1) { // Ảnh ngang
+                        finalW = BASE_SIZE;
+                        finalH = BASE_SIZE / ratio;
+                    } else { // Ảnh đứng
+                        finalH = BASE_SIZE;
+                        finalW = BASE_SIZE * ratio;
+                    }
+
+                    // Cập nhật lại hình dáng khung ảnh
+                    mesh.geometry.dispose();
+                    mesh.geometry = new THREE.PlaneGeometry(finalW, finalH);
+                    mesh.material.map = texture;
+                    mesh.material.opacity = 1;
+                    mesh.material.needsUpdate = true;
+
+                    // Tạo viền ôm sát theo tỷ lệ ảnh mới
+                    const padding = 0.6;
+                    const bGeo = new THREE.PlaneGeometry(finalW + padding, finalH + padding);
+                    const border = new THREE.Mesh(bGeo, borderMat);
+                    border.position.z = -0.05; // Đẩy nhẹ ra sau ảnh
+
+                    mesh.add(border);
+                });
             }
-
-            // Cập nhật lại hình dáng khung ảnh
-            mesh.geometry.dispose();
-            mesh.geometry = new THREE.PlaneGeometry(finalW, finalH);
-            mesh.material.map = texture;
-            mesh.material.opacity = 1;
-            mesh.material.needsUpdate = true;
-
-            // Tạo viền ôm sát theo tỷ lệ ảnh mới
-            const padding = 0.6;
-            const bGeo = new THREE.PlaneGeometry(finalW + padding, finalH + padding);
-            const border = new THREE.Mesh(bGeo, borderMat);
-            border.position.z = -0.05; // Đẩy nhẹ ra sau ảnh
-            
-            mesh.add(border);
-        });
-    }
-}
+        }
 
         function createDecorations() {
             // MERRY CHRISTMAS 
@@ -580,6 +641,7 @@
             const time = Date.now() * 0.001;
             const speed = 0.08;
             const handRotY = (handX - 0.5) * 4.0;
+            
 
             updateParticleGroup(groupGold, 'gold', state, speed, handRotY, time);
             updateParticleGroup(groupRed, 'red', state, speed, handRotY, time);
@@ -703,6 +765,41 @@
         window.addEventListener('resize', () => {
             if (camera) { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
         });
+
+        let groupSnow;
+
+        function createSnowSystem() {
+            const positions = [];
+            const velocities = [];
+            const phases = [];
+
+            for (let i = 0; i < CONFIG.snowCount; i++) {
+                // Vị trí ngẫu nhiên trong không gian
+                positions.push(
+                    (Math.random() - 0.5) * CONFIG.snowRange,
+                    (Math.random() - 0.5) * CONFIG.snowRange,
+                    (Math.random() - 0.5) * CONFIG.snowRange
+                );
+                velocities.push(0.1 + Math.random() * 0.2); // Tốc độ rơi
+                phases.push(Math.random() * Math.PI * 2);    // Độ lắc lư
+            }
+
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            geo.userData = { velocities, phases };
+
+            const mat = new THREE.PointsMaterial({
+                size: 1.5,
+                map: textures.snow,
+                transparent: true,
+                opacity: 0.8,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+
+            groupSnow = new THREE.Points(geo, mat);
+            scene.add(groupSnow);
+        }
     </script>
 </body>
 
